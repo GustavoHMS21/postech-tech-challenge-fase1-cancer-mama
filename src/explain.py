@@ -16,7 +16,7 @@ import pandas as pd
 import shap
 
 from src.data import load_data
-from src.preprocessing import split_data
+from src.preprocessing import RANDOM_STATE, split_data
 from src.train import MODELS_DIR
 
 FIG_DIR = Path(__file__).resolve().parents[1] / "reports" / "figures"
@@ -88,6 +88,9 @@ def shap_values_test(model_name: str = BEST_MODEL):
 def plot_shap_summary(model_name: str = BEST_MODEL, out: Path = FIG_DIR / "06_shap_summary.png") -> Path:
     """Beeswarm: impacto de cada feature na previsão de todos os pacientes do teste."""
     out.parent.mkdir(parents=True, exist_ok=True)
+    # O beeswarm desloca pontos sobrepostos com ruído aleatório do numpy; a semente
+    # fixa torna a figura idêntica entre execuções.
+    np.random.seed(RANDOM_STATE)
     shap.summary_plot(shap_values_test(model_name), max_display=15, show=False)
     plt.title(f"SHAP: impacto de cada feature ({model_name})")
     plt.tight_layout()
