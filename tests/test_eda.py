@@ -1,29 +1,23 @@
-"""Testes da EDA: verificam formatos das tabelas e que as figuras são geradas.
-
-Usamos `tmp_path` do pytest para não sujar reports/ durante os testes.
-"""
-from src.data import TARGET, load_data
+"""Testes das tabelas e figuras da EDA (figuras gravadas em diretório temporário)."""
+from src.data import load_data
 from src import eda
 
 
 def test_describe_tem_30_features():
-    df = load_data()
-    assert eda.describe(df).shape[0] == 30  # uma linha por feature, alvo excluído
+    assert eda.describe(load_data()).shape[0] == 30
 
 
 def test_class_balance_soma_total():
     df = load_data()
     bal = eda.class_balance(df)
     assert bal["n"].sum() == len(df)
-    assert abs(bal["proporcao"].sum() - 1) < 0.01  # proporções somam ~1 (arredondamento)
+    assert abs(bal["proporcao"].sum() - 1) < 0.01
 
 
 def test_top_correlacoes_conhecidas():
-    # 'worst concave points' e 'worst perimeter' são sabidamente as mais correlacionadas
-    # com malignidade neste dataset; se sumirem do top 3, algo mudou nos dados.
     top = eda.top_correlated_with_target(load_data(), n=3)
     assert "worst concave points" in top.index
-    assert (top > 0).all()  # sinal positivo: valores maiores -> mais maligno (alvo=1)
+    assert (top > 0).all()
 
 
 def test_figuras_sao_geradas(tmp_path):

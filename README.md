@@ -1,67 +1,76 @@
-# Tech Challenge — Fase 1 · Apoio ao diagnóstico de câncer de mama
+# Tech Challenge Fase 1: apoio ao diagnóstico de câncer de mama
 
-Protótipo acadêmico (POSTECH) de um sistema de **apoio à decisão** que classifica tumores de mama como
-**maligno** ou **benigno** com Machine Learning, a partir do dataset público *Breast Cancer Wisconsin (Diagnostic)*.
+Projeto da Fase 1 do Tech Challenge (POSTECH). Classificação de tumores de mama em maligno ou benigno a partir do
+dataset público Breast Cancer Wisconsin (Diagnostic), com interpretação por feature importance e SHAP e interface
+de apoio à decisão clínica.
 
-> O modelo produz uma **sugestão com probabilidade e explicação (SHAP)**. A decisão final é sempre do
-> profissional de saúde (human-in-the-loop).
+O sistema retorna uma sugestão com probabilidade e explicação. A decisão final cabe ao profissional de saúde.
 
 - Relatório técnico: [`reports/relatorio_tecnico.md`](reports/relatorio_tecnico.md)
-- Notebook de demonstração: [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb)
-- Dataset: [`data/README.md`](data/README.md) (link Kaggle/UCI; cópia embutida no scikit-learn)
+- Notebook: [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb)
+- Dataset: [`data/README.md`](data/README.md)
 
-## Como executar
+## Execução
 
-### Local (Python 3.10+)
+### Local (Python 3.11 ou superior)
+
 ```bash
 pip install -r requirements.txt
-python -m src.run_pipeline      # EDA + treino + avaliação + SHAP -> models/ e reports/
+python -m src.run_pipeline      # EDA, treino, avaliação e SHAP; gera models/ e reports/
 streamlit run app/app.py        # interface em http://localhost:8501
 pytest -q                       # testes
 ```
-Notebook: `cd notebooks && python build_notebook.py && python -m nbconvert --to notebook --execute --inplace analysis.ipynb`
+
+Notebook:
+
+```bash
+cd notebooks
+python build_notebook.py
+python -m nbconvert --to notebook --execute --inplace analysis.ipynb
+```
 
 ### Docker
+
 ```bash
 docker build -t tech-challenge .
-docker run -p 8501:8501 tech-challenge   # abra http://localhost:8501
+docker run -p 8501:8501 tech-challenge
 ```
-O build já treina os modelos e gera os relatórios (não há download: o dataset vem com o scikit-learn).
+
+A interface fica disponível em http://localhost:8501. O build executa o pipeline completo; não há download de
+dados, pois o dataset é distribuído com o scikit-learn.
 
 ## Estrutura
+
 ```
-DIRETRIZES.md         regras do projeto: arquitetura, código, data leakage, limites do modelo
-src/data.py           carrega o dataset (1 = maligno, 0 = benigno)
-src/eda.py            estatísticas, distribuições, correlação -> reports/
-src/preprocessing.py  split estratificado 60/20/20 + Pipeline(StandardScaler, modelo)
-src/train.py          Regressão Logística e Random Forest; métricas na validação; salva models/
-src/evaluate.py       Accuracy, Recall, F1 e matriz de confusão no teste (usado uma única vez)
-src/explain.py        Feature importance + SHAP (global e por paciente)
-src/run_pipeline.py   executa tudo acima em sequência
-app/app.py            Streamlit: previsão + probabilidade + SHAP + registro da decisão médica
-notebooks/            analysis.ipynb (gerado por build_notebook.py; só chama src/)
-tests/                pytest (13 testes)
-reports/figures/      gráficos  ·  reports/results/  tabelas CSV
+src/data.py           carregamento do dataset (1 = maligno, 0 = benigno)
+src/eda.py            estatísticas descritivas, distribuições e correlação
+src/preprocessing.py  divisão estratificada 60/20/20 e Pipeline (StandardScaler + modelo)
+src/train.py          Regressão Logística e Random Forest; métricas na validação
+src/evaluate.py       métricas, matriz de confusão e análise de erros no teste
+src/explain.py        feature importance e SHAP (global e por paciente)
+src/run_pipeline.py   execução de todas as etapas em sequência
+app/app.py            interface Streamlit: previsão, probabilidade, SHAP e registro da decisão
+notebooks/            analysis.ipynb, gerado por build_notebook.py a partir das funções de src/
+tests/                testes automatizados (pytest)
+reports/figures/      gráficos
+reports/results/      tabelas CSV
 ```
 
-## Resultados (conjunto de teste, n = 114)
+## Resultados no conjunto de teste (n = 114, 42 malignos)
 
 | Modelo | Accuracy | Recall (maligno) | F1 | Falsos negativos |
 |---|---|---|---|---|
-| **Regressão Logística** (escolhido) | 0,974 | 0,952 | 0,964 | 2 / 42 |
-| Random Forest | 0,974 | 0,952 | 0,964 | 2 / 42 |
+| Regressão Logística (selecionado) | 0,974 | 0,952 | 0,964 | 2 |
+| Random Forest | 0,974 | 0,952 | 0,964 | 2 |
 
-Métrica prioritária: **recall** da classe maligna (falso negativo = câncer não detectado). Detalhes,
-gráficos e discussão crítica no relatório técnico.
+O modelo foi selecionado pelo recall na validação (0,977 contra 0,953). No teste os dois modelos empatam; a
+Regressão Logística é mantida por ser mais simples e interpretável. A análise completa está no relatório técnico.
 
-> **Reprodutibilidade:** os números acima foram validados com Python 3.12 e as versões
-> pandas 3.0.5, numpy 2.5.2, scikit-learn 1.9.0, shap 0.52.0, matplotlib 3.11.1,
-> seaborn 0.13.2 e streamlit 1.63.0. Com versões diferentes das bibliotecas, a Random
-> Forest pode apresentar pequenas variações; a escolha da Regressão Logística (maior
-> recall na validação) se mantém.
+Resultados obtidos com Python 3.12 e as versões fixadas em `requirements.txt`.
 
-## Fluxo do sistema
+## Fluxo
+
 ```
 exame (30 medidas) -> pipeline (scaler + modelo) -> probabilidade de maligno
-                   -> SHAP (por que) -> avaliação do médico -> decisão final
+                   -> SHAP -> avaliação do profissional -> decisão final
 ```

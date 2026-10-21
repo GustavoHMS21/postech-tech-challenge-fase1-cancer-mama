@@ -1,33 +1,29 @@
-"""Análise exploratória (EDA) do dataset.
+"""Análise exploratória: estatísticas descritivas, balanceamento, distribuições e correlação.
 
-Objetivo: entender os dados ANTES de modelar — tamanho, tipos, balanceamento das
-classes, distribuição das features e correlações. Tudo é salvo em `reports/`
-para ser reaproveitado no relatório técnico e no notebook, sem recalcular.
-
-Por que EDA em um módulo e não só no notebook? Para que as figuras sejam
-reprodutíveis por um comando (`python -m src.eda`) e testáveis com pytest.
+Tabelas e figuras são gravadas em reports/ e reutilizadas pelo notebook e pelo relatório.
 """
 from pathlib import Path
 
 import matplotlib
 
-# Backend "Agg" desenha em arquivo sem precisar de janela gráfica — necessário
-# para rodar em servidor, Docker e pytest (ambientes sem display).
+# Backend sem interface gráfica, necessário para execução em Docker e pytest.
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-import seaborn as sns
 
 from src.data import TARGET, load_data
 
-# Pastas de saída relativas ao projeto (mesma lógica de DATA_DIR em data.py).
 REPORTS_DIR = Path(__file__).resolve().parents[1] / "reports"
 FIG_DIR = REPORTS_DIR / "figures"
 RES_DIR = REPORTS_DIR / "results"
 
-# As 30 features são 10 medidas x 3 estatísticas (mean, error, worst). Para os
-# histogramas usamos apenas as 10 "mean": são as mais interpretáveis clinicamente
-# e evitam 30 gráficos redundantes (as versões "worst" são fortemente correlacionadas).
+PALETTE = {0: "#4c72b0", 1: "#c44e52"}
+LABELS = {0: "benigno", 1: "maligno"}
+
+# As 30 features são 10 medidas em três estatísticas (mean, error, worst). Os gráficos
+# de distribuição usam apenas as médias, já que as versões "worst" são altamente
+# correlacionadas com elas e repetiriam a mesma informação.
 MEAN_FEATURES = [
     "mean radius", "mean texture", "mean perimeter", "mean area", "mean smoothness",
     "mean compactness", "mean concavity", "mean concave points", "mean symmetry",
@@ -36,52 +32,45 @@ MEAN_FEATURES = [
 
 
 def describe(df: pd.DataFrame) -> pd.DataFrame:
-    """Estatísticas descritivas (count, média, desvio, quartis) de cada feature.
-
-    Transpomos (.T) para que cada linha seja uma feature — mais legível com 30 colunas.
-    """
+    """Estatísticas descritivas por feature (uma linha por feature)."""
     return df.drop(columns=[TARGET]).describe().T
 
 
 def class_balance(df: pd.DataFrame) -> pd.DataFrame:
-    """Contagem e proporção de cada classe.
-
-    Importante para decidir se precisamos de balanceamento e para escolher métricas:
-    com desbalanceamento (~63% benigno), accuracy sozinha engana — daí recall e F1.
-    """
+    """Contagem e proporção de cada classe."""
     counts = df[TARGET].value_counts().rename({1: "maligno", 0: "benigno"})
     return pd.DataFrame({"n": counts, "proporcao": (counts / len(df)).round(3)})
 
 
 def plot_class_balance(df: pd.DataFrame, out: Path = FIG_DIR / "01_balanceamento.png") -> Path:
-    """Gráfico de barras das classes — visualização direta do desbalanceamento."""
+    """Gráfico de barras com o número de amostras por classe."""
     out.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(4, 3))
-    class_balance(df)["n"].plot.bar(ax=ax, color=["#4c72b0", "#c44e52"], rot=0)
+    class_balance(df)["n"].plot.bar(ax=ax, color=[PALETTE[0], PALETTE[1]], rot=0)
     ax.set_title("Distribuição das classes")
     ax.set_ylabel("nº de amostras")
     fig.tight_layout()
     fig.savefig(out, dpi=120)
-    plt.close(fig)  # libera memória; sem isso, muitas figuras acumulam em loops/pytest.
+    plt.close(fig)
     return out
 
 
 def plot_distributions(df: pd.DataFrame, out: Path = FIG_DIR / "02_distribuicoes_mean.png") -> Path:
-    """Histogramas das 10 features 'mean', separados por classe.
+    """Histogramas das features 'mean' separados por classe.
 
-    Por que separar por classe? Queremos ver quais features já distinguem maligno
-    de benigno visualmente (ex.: 'mean concave points') — isso antecipa o que o
-    modelo e o SHAP vão apontar como importante.
+    Cada classe é normalizada como densidade para que a forma das distribuições seja
+    comparável apesar do desbalanceamento. As duas classes compartilham os mesmos
+    intervalos (bins) para que as barras fiquem alinhadas.
     """
     out.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(2, 5, figsize=(16, 6))
     for ax, col in zip(axes.ravel(), MEAN_FEATURES):
-        # kde=False e stat="density" para comparar formas mesmo com classes de tamanhos diferentes.
-        sns.histplot(data=df, x=col, hue=TARGET, stat="density", common_norm=False,
-                     bins=25, ax=ax, palette={0: "#4c72b0", 1: "#c44e52"}, alpha=0.5)
+        bins = np.histogram_bin_edges(df[col], bins=25)
+        for k in (0, 1):
+            ax.hist(df.loc[df[TARGET] == k, col], bins=bins, density=True, alpha=0.5,
+                    color=PALETTE[k], label=LABELS[k])
         ax.set_title(col, fontsize=10)
-        ax.set_xlabel("")
-        ax.get_legend().set_title("1=maligno")
+    axes[0, 0].legend()
     fig.suptitle("Distribuição das features 'mean' por classe")
     fig.tight_layout()
     fig.savefig(out, dpi=120)
@@ -90,14 +79,16 @@ def plot_distributions(df: pd.DataFrame, out: Path = FIG_DIR / "02_distribuicoes
 
 
 def plot_boxplots(df: pd.DataFrame, out: Path = FIG_DIR / "03_boxplots_mean.png") -> Path:
-    """Boxplots das features 'mean' por classe — evidenciam outliers e separação de medianas."""
+    """Boxplots das features 'mean' por classe (medianas e outliers)."""
     out.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(2, 5, figsize=(16, 6))
     for ax, col in zip(axes.ravel(), MEAN_FEATURES):
-        sns.boxplot(data=df, x=TARGET, y=col, ax=ax, palette={0: "#4c72b0", 1: "#c44e52"}, hue=TARGET, legend=False)
+        bp = ax.boxplot([df.loc[df[TARGET] == k, col] for k in (0, 1)],
+                        tick_labels=[LABELS[0], LABELS[1]], patch_artist=True, widths=0.6)
+        for patch, k in zip(bp["boxes"], (0, 1)):
+            patch.set_facecolor(PALETTE[k])
+            patch.set_alpha(0.7)
         ax.set_title(col, fontsize=10)
-        ax.set_xlabel("0=benigno  1=maligno")
-        ax.set_ylabel("")
     fig.tight_layout()
     fig.savefig(out, dpi=120)
     plt.close(fig)
@@ -105,32 +96,28 @@ def plot_boxplots(df: pd.DataFrame, out: Path = FIG_DIR / "03_boxplots_mean.png"
 
 
 def correlation(df: pd.DataFrame) -> pd.DataFrame:
-    """Matriz de correlação de Pearson entre todas as features e o alvo.
+    """Matriz de correlação de Pearson.
 
-    Pearson é adequado porque todas as variáveis são numéricas contínuas (e o alvo
-    binário 0/1 funciona como correlação ponto-bisserial).
+    Com o alvo binário, a correlação de Pearson equivale à ponto-bisserial.
     """
     return df.corr(numeric_only=True)
 
 
 def top_correlated_with_target(df: pd.DataFrame, n: int = 10) -> pd.Series:
-    """As n features mais correlacionadas (em módulo) com o alvo — ranking simples de relevância."""
+    """As n features com maior correlação absoluta com o alvo."""
     corr = correlation(df)[TARGET].drop(TARGET)
     return corr.reindex(corr.abs().sort_values(ascending=False).index).head(n)
 
 
 def plot_correlation(df: pd.DataFrame, out: Path = FIG_DIR / "04_correlacao.png") -> Path:
-    """Heatmap da correlação entre todas as variáveis.
-
-    Serve para dois pontos do relatório: (1) quais features se relacionam com o alvo;
-    (2) multicolinearidade — radius/perimeter/area são quase redundantes (r>0.99),
-    o que justifica usar regularização na regressão logística e cuidado ao ler
-    importâncias individuais.
-    """
+    """Heatmap da matriz de correlação entre todas as variáveis."""
     out.parent.mkdir(parents=True, exist_ok=True)
+    corr = correlation(df)
     fig, ax = plt.subplots(figsize=(14, 12))
-    sns.heatmap(correlation(df), cmap="coolwarm", center=0, vmin=-1, vmax=1,
-                square=True, cbar_kws={"shrink": 0.6}, ax=ax)
+    im = ax.imshow(corr, cmap="coolwarm", vmin=-1, vmax=1)
+    ax.set_xticks(range(len(corr)), corr.columns, rotation=90, fontsize=8)
+    ax.set_yticks(range(len(corr)), corr.columns, fontsize=8)
+    fig.colorbar(im, ax=ax, shrink=0.6)
     ax.set_title("Matriz de correlação (Pearson)")
     fig.tight_layout()
     fig.savefig(out, dpi=110)
@@ -139,7 +126,7 @@ def plot_correlation(df: pd.DataFrame, out: Path = FIG_DIR / "04_correlacao.png"
 
 
 def run_eda() -> dict:
-    """Executa toda a EDA e grava tabelas (CSV) e figuras (PNG). Retorna os caminhos gerados."""
+    """Gera todas as tabelas e figuras da EDA e retorna os caminhos."""
     RES_DIR.mkdir(parents=True, exist_ok=True)
     df = load_data()
     outputs = {
@@ -162,4 +149,4 @@ if __name__ == "__main__":
     print("Balanceamento:\n", class_balance(df), "\n")
     print("Top 10 correlações com o alvo:\n", top_correlated_with_target(df).round(3), "\n")
     for k, v in run_eda().items():
-        print(f"{k:12s} -> {v.relative_to(REPORTS_DIR.parent)}")
+        print(f"{k:12s} {v.relative_to(REPORTS_DIR.parent)}")

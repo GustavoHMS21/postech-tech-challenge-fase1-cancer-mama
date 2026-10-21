@@ -1,12 +1,12 @@
 # Dados
 
-Dataset: **Breast Cancer Wisconsin (Diagnostic)** — público, 569 amostras, 30 atributos numéricos
-calculados a partir de imagens de aspirado por agulha fina de massas mamárias.
+Breast Cancer Wisconsin (Diagnostic): 569 amostras e 30 atributos numéricos calculados a partir de imagens
+digitalizadas de punção aspirativa por agulha fina (PAAF) de massas mamárias.
 
 - Kaggle: https://www.kaggle.com/datasets/uciml/breast-cancer-wisconsin-data/data
 - UCI: https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic
 
-O projeto carrega a cópia embutida no scikit-learn (`sklearn.datasets.load_breast_cancer`), então
-não é necessário download. `python -m src.data` gera `data/breast_cancer.csv` para consulta.
+O projeto utiliza a cópia distribuída com o scikit-learn (`sklearn.datasets.load_breast_cancer`), sem necessidade
+de download. O arquivo `breast_cancer.csv` é gerado por `python -m src.data`.
 
-Alvo: `target` = 1 maligno, 0 benigno (212 malignos / 357 benignos).
+Alvo: `target` = 1 para maligno (212 amostras) e 0 para benigno (357 amostras).

@@ -1,12 +1,7 @@
 """Treinamento dos modelos de classificação.
 
-Dois modelos, escolhidos por serem simples e complementares:
-- Regressão Logística: linear, rápida, coeficientes interpretáveis. Baseline clássico.
-- Random Forest: não linear, captura interações, robusta a escala e outliers.
-Ambos passam pelo mesmo pipeline (scaler + modelo) de `preprocessing.py`.
-
-Fluxo: treina no TREINO -> compara na VALIDAÇÃO -> salva os dois em models/.
-O conjunto de TESTE não é tocado aqui (só em evaluate.py).
+Os modelos são ajustados no conjunto de treino e comparados no conjunto de validação.
+O conjunto de teste não é utilizado neste módulo.
 """
 from pathlib import Path
 
@@ -23,14 +18,13 @@ MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
 
 
 def get_models() -> dict:
-    """Dicionário nome -> modelo (não treinado).
+    """Modelos avaliados, ainda não treinados.
 
-    - LogisticRegression: max_iter=1000 porque com 30 features o padrão (100) às vezes
-      não converge; a regularização L2 padrão (C=1) ajuda com a multicolinearidade
-      vista na EDA (radius/perimeter/area).
-    - RandomForest: 200 árvores é suficiente para estabilizar em dataset pequeno;
-      class_weight="balanced" penaliza mais errar a classe minoritária (maligno),
-      alinhado à prioridade de recall.
+    - Regressão Logística: modelo linear de referência, com coeficientes interpretáveis.
+      A regularização L2 padrão (C=1) reduz o efeito da multicolinearidade observada
+      na EDA; max_iter=1000 garante convergência do solver.
+    - Random Forest: modelo não linear que captura interações entre features.
+      class_weight="balanced" aumenta o peso dos erros na classe minoritária (maligno).
     """
     return {
         "logistic_regression": LogisticRegression(max_iter=1000, random_state=RANDOM_STATE),
@@ -40,7 +34,7 @@ def get_models() -> dict:
 
 
 def compute_metrics(y_true, y_pred) -> dict:
-    """As três métricas exigidas. Classe positiva = 1 (maligno)."""
+    """Accuracy, recall e F1, com a classe maligna (1) como positiva."""
     return {
         "accuracy": accuracy_score(y_true, y_pred),
         "recall": recall_score(y_true, y_pred),
@@ -49,18 +43,12 @@ def compute_metrics(y_true, y_pred) -> dict:
 
 
 def train_all() -> pd.DataFrame:
-    """Treina cada modelo, avalia na validação e salva o pipeline treinado em models/.
-
-    Retorna uma tabela com as métricas de validação — é ela que orienta a escolha
-    do modelo final, sem olhar o teste.
-    """
+    """Treina os modelos, salva os pipelines em models/ e retorna as métricas de validação."""
     X_tr, X_va, _, y_tr, y_va, _ = split_data(load_data())
     MODELS_DIR.mkdir(exist_ok=True)
     rows = []
     for name, model in get_models().items():
         pipe = build_pipeline(model).fit(X_tr, y_tr)
-        # joblib é o formato padrão do sklearn para persistir pipelines (mais eficiente
-        # que pickle para arrays numpy). O app e o evaluate carregam estes arquivos.
         joblib.dump(pipe, MODELS_DIR / f"{name}.joblib")
         rows.append({"modelo": name, **compute_metrics(y_va, pipe.predict(X_va))})
     results = pd.DataFrame(rows).set_index("modelo")
@@ -69,4 +57,4 @@ def train_all() -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    print("Métricas na VALIDAÇÃO:\n", train_all().round(4))
+    print("Métricas na validação:\n", train_all().round(4))

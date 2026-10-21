@@ -1,0 +1,6 @@
+[client]
+# Oculta o menu de desenvolvimento e o botão Deploy.
+toolbarMode = "viewer"
+
+[browser]
+gatherUsageStats = false

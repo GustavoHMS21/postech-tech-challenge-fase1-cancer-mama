@@ -1,0 +1,7 @@
+modelo,paciente,real,tipo,prob_maligno
+logistic_regression,4,0,FP,0.67
+logistic_regression,16,1,FN,0.07
+logistic_regression,112,1,FN,0.465
+random_forest,16,1,FN,0.345
+random_forest,42,1,FN,0.435
+random_forest,92,0,FP,0.52
