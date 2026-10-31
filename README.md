@@ -6,6 +6,7 @@ de apoio à decisão clínica.
 
 O sistema retorna uma sugestão com probabilidade e explicação. A decisão final cabe ao profissional de saúde.
 
+- Vídeo de demonstração: https://www.youtube.com/watch?v=yZMCjVtOXNg
 - Relatório técnico: [`reports/relatorio_tecnico.md`](reports/relatorio_tecnico.md)
 - Notebook: [`notebooks/analysis.ipynb`](notebooks/analysis.ipynb)
 - Dataset: [`data/README.md`](data/README.md)

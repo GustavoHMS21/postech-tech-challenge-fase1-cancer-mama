@@ -4,7 +4,7 @@
 
 Repositório: https://github.com/GustavoHMS21/postech-tech-challenge-fase1-cancer-mama
 
-Vídeo de demonstração: _[inserir link]_
+Vídeo de demonstração: https://www.youtube.com/watch?v=yZMCjVtOXNg
 
 ---
 
